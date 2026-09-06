@@ -976,9 +976,11 @@ function SettlementsTab({ members, finalBalances, suggested, completedSettlement
                   <button type="button" onClick={() => setExpandedFamilies((current) => ({ ...current, [family]: !current[family] }))} className="w-full flex items-center justify-between px-4 py-3 text-left">
                     <div className="flex items-center gap-2 text-sm">
                       {expanded ? <ChevronUp size={16} className="text-slate-400" /> : <ChevronDown size={16} className="text-slate-400" />}
-                      <span className="font-semibold text-slate-800">{family}</span>
-                      <span className="text-slate-400">owes {Array.from(new Set(settlements.map((settlement) => settlement.toName))).join(", ")}</span>
-                      {reasons.length > 0 && <span className="text-slate-400 hidden sm:inline">for {reasons.join(", ")}</span>}
+                      <div>
+                        <span className="font-semibold text-slate-800">{family}</span>
+                        <span className="text-slate-400 ml-2">owes {Array.from(new Set(settlements.map((settlement) => settlement.toName))).join(", ")}</span>
+                        {reasons.length > 0 && <div className="text-xs text-slate-400 mt-0.5">For: {reasons.join(", ")}</div>}
+                      </div>
                     </div>
                     <span className="font-bold text-teal-700">{inr(total)}</span>
                   </button>
