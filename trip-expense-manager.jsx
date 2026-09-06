@@ -201,26 +201,35 @@ function suggestSettlements(expenses, members, completed) {
 
   expenses.forEach((expense) => {
     const shares = getShares(expense, members);
-    Object.entries(shares).forEach(([memberId, share]) => addDebt(memberId, expense.paidBy, share));
+    Object.entries(shares).forEach(([memberId, share]) => {
+      if (memberId === expense.paidBy || share <= eps) return;
+      debts[memberId] = debts[memberId] || {};
+      debts[memberId][expense.paidBy] = debts[memberId][expense.paidBy] || { amount: 0, reasons: [] };
+      debts[memberId][expense.paidBy].amount += share;
+      debts[memberId][expense.paidBy].reasons.push(expense.title);
+    });
   });
 
   completed.forEach((settlement) => {
     if (!debts[settlement.from]?.[settlement.to]) return;
-    debts[settlement.from][settlement.to] = Math.max(0, debts[settlement.from][settlement.to] - settlement.amount);
+    debts[settlement.from][settlement.to].amount = Math.max(0, debts[settlement.from][settlement.to].amount - settlement.amount);
   });
 
   const processedPairs = new Set();
   const suggestions = [];
   Object.entries(debts).forEach(([from, recipients]) => {
-    Object.entries(recipients).forEach(([to, amount]) => {
+    Object.entries(recipients).forEach(([to, debt]) => {
       const pair = [from, to].sort().join("|");
       if (processedPairs.has(pair)) return;
       processedPairs.add(pair);
-      const reverseAmount = debts[to]?.[from] || 0;
+      const amount = debt.amount;
+      const reverseDebt = debts[to]?.[from];
+      const reverseAmount = reverseDebt?.amount || 0;
       const netAmount = amount - reverseAmount;
       if (Math.abs(netAmount) <= eps) return;
       const debtor = netAmount > 0 ? from : to;
       const creditor = netAmount > 0 ? to : from;
+      const reasonDebt = netAmount > 0 ? debt : reverseDebt;
       suggestions.push({
         id: genId("sg"),
         from: debtor,
@@ -228,6 +237,7 @@ function suggestSettlements(expenses, members, completed) {
         to: creditor,
         toName: (members.find((member) => member.id === creditor) || {}).name || "—",
         amount: Math.round(Math.abs(netAmount)),
+        reason: Array.from(new Set(reasonDebt?.reasons || [])).join(", "),
       });
     });
   });
@@ -960,6 +970,7 @@ function SettlementsTab({ members, finalBalances, suggested, completedSettlement
             {familySettlements.map(([family, settlements]) => {
               const expanded = expandedFamilies[family];
               const total = settlements.reduce((sum, settlement) => sum + settlement.amount, 0);
+              const reasons = Array.from(new Set(settlements.flatMap((settlement) => settlement.reason ? settlement.reason.split(", ") : [])));
               return (
                 <div key={family} className="bg-stone-50 border border-stone-200 rounded-lg overflow-hidden">
                   <button type="button" onClick={() => setExpandedFamilies((current) => ({ ...current, [family]: !current[family] }))} className="w-full flex items-center justify-between px-4 py-3 text-left">
@@ -967,6 +978,7 @@ function SettlementsTab({ members, finalBalances, suggested, completedSettlement
                       {expanded ? <ChevronUp size={16} className="text-slate-400" /> : <ChevronDown size={16} className="text-slate-400" />}
                       <span className="font-semibold text-slate-800">{family}</span>
                       <span className="text-slate-400">owes {Array.from(new Set(settlements.map((settlement) => settlement.toName))).join(", ")}</span>
+                      {reasons.length > 0 && <span className="text-slate-400 hidden sm:inline">for {reasons.join(", ")}</span>}
                     </div>
                     <span className="font-bold text-teal-700">{inr(total)}</span>
                   </button>
@@ -978,6 +990,7 @@ function SettlementsTab({ members, finalBalances, suggested, completedSettlement
                             <span className="font-semibold text-slate-800">{s.fromName}</span>
                             <span className="text-slate-400 mx-2">owes</span>
                             <span className="font-semibold text-slate-800">{s.toName}</span>
+                            {s.reason && <div className="text-xs text-slate-400 mt-0.5">For: {s.reason}</div>}
                           </div>
                           <div className="flex items-center gap-3 shrink-0">
                             <span className="font-bold text-teal-700">{inr(s.amount)}</span>
