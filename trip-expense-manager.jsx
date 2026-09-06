@@ -172,7 +172,7 @@ function applySettlements(bal, completed) {
 }
 
 function suggestSettlements(balances, members) {
-  const eps = 1;
+  const eps = 0.01;
   const creditors = members
     .filter((m) => (balances[m.id] || 0) > eps)
     .map((m) => ({ id: m.id, name: m.name, amt: balances[m.id] }))
