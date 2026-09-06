@@ -190,16 +190,29 @@ function suggestSettlements(expenses, members, completed) {
     debts[settlement.from][settlement.to] = Math.max(0, debts[settlement.from][settlement.to] - settlement.amount);
   });
 
-  return Object.entries(debts).flatMap(([from, recipients]) => Object.entries(recipients)
-    .filter(([, amount]) => amount > eps)
-    .map(([to, amount]) => ({
-      id: genId("sg"),
-      from,
-      fromName: (members.find((member) => member.id === from) || {}).name || "—",
-      to,
-      toName: (members.find((member) => member.id === to) || {}).name || "—",
-      amount: Math.round(amount),
-    })));
+  const processedPairs = new Set();
+  const suggestions = [];
+  Object.entries(debts).forEach(([from, recipients]) => {
+    Object.entries(recipients).forEach(([to, amount]) => {
+      const pair = [from, to].sort().join("|");
+      if (processedPairs.has(pair)) return;
+      processedPairs.add(pair);
+      const reverseAmount = debts[to]?.[from] || 0;
+      const netAmount = amount - reverseAmount;
+      if (Math.abs(netAmount) <= eps) return;
+      const debtor = netAmount > 0 ? from : to;
+      const creditor = netAmount > 0 ? to : from;
+      suggestions.push({
+        id: genId("sg"),
+        from: debtor,
+        fromName: (members.find((member) => member.id === debtor) || {}).name || "—",
+        to: creditor,
+        toName: (members.find((member) => member.id === creditor) || {}).name || "—",
+        amount: Math.round(Math.abs(netAmount)),
+      });
+    });
+  });
+  return suggestions.filter((suggestion) => suggestion.amount > 0);
 }
 
 function compressImage(file, maxW = 480, quality = 0.6) {
