@@ -832,7 +832,23 @@ function ExpensesTab({ members, expenses, isAdmin, onAdd, onDelete }) {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2">
                       <span className="font-medium text-slate-800 truncate">{e.title}</span>
-                      <span className="font-semibold text-slate-800 shrink-0">{inr(e.amount)}</span>
+                      <div className="flex items-center gap-3 shrink-0">
+                        <span className="font-semibold text-slate-800">{inr(e.amount)}</span>
+                        {isAdmin && (
+                          <button
+                            type="button"
+                            title="Delete expense"
+                            aria-label={`Delete ${e.title}`}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              if (confirm(`Delete expense "${e.title}"?`)) onDelete(e.id);
+                            }}
+                            className="text-slate-400 hover:text-rose-600 p-1"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        )}
+                      </div>
                     </div>
                     <div className="text-xs text-slate-500 mt-0.5">{e.category} · {fmtDate(e.date)} · Paid by {memberName(e.paidBy)}</div>
                     {e.description && <div className="text-xs text-slate-400 mt-1 truncate">{e.description}</div>}
@@ -850,9 +866,6 @@ function ExpensesTab({ members, expenses, isAdmin, onAdd, onDelete }) {
                         </div>
                       ))}
                     </div>
-                    {isAdmin && (
-                      <button onClick={() => onDelete(e.id)} className="mt-3 text-xs text-rose-600 hover:text-rose-800 flex items-center gap-1"><Trash2 size={13} /> Delete expense</button>
-                    )}
                   </div>
                 )}
               </div>
