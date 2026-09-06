@@ -695,18 +695,20 @@ function TrainPaymentsTab({ members, trainData, isAdmin, onSetTicket, onAddPayme
   );
 }
 
-function ExpenseForm({ members, onSave, onCancel }) {
-  const [title, setTitle] = useState("");
-  const [amount, setAmount] = useState("");
-  const [paidBy, setPaidBy] = useState(members[0] ? members[0].id : "");
-  const [date, setDate] = useState(todayStr());
-  const [category, setCategory] = useState(CATEGORIES[0]);
-  const [description, setDescription] = useState("");
-  const [receipt, setReceipt] = useState(null);
-  const [splitType, setSplitType] = useState("equalAll");
-  const [selected, setSelected] = useState(members.map((m) => m.id));
-  const [customShares, setCustomShares] = useState({});
-  const [childWeight, setChildWeight] = useState(0.7);
+function ExpenseForm({ members, initialExpense, onSave, onCancel }) {
+  const initialParticipants = initialExpense?.participants?.length ? initialExpense.participants : members.map((m) => m.id);
+  const initialSplitType = initialExpense?.splitType === "custom" ? "custom" : initialExpense?.splitType === "adultChild" ? "adultChild" : initialExpense?.splitType === "equal" && initialParticipants.length !== members.length ? "equalSelected" : "equalAll";
+  const [title, setTitle] = useState(initialExpense?.title || "");
+  const [amount, setAmount] = useState(initialExpense?.amount || "");
+  const [paidBy, setPaidBy] = useState(initialExpense?.paidBy || (members[0] ? members[0].id : ""));
+  const [date, setDate] = useState(initialExpense?.date || todayStr());
+  const [category, setCategory] = useState(initialExpense?.category || CATEGORIES[0]);
+  const [description, setDescription] = useState(initialExpense?.description || "");
+  const [receipt, setReceipt] = useState(initialExpense?.receipt || null);
+  const [splitType, setSplitType] = useState(initialSplitType);
+  const [selected, setSelected] = useState(initialParticipants);
+  const [customShares, setCustomShares] = useState(initialExpense?.customShares || {});
+  const [childWeight, setChildWeight] = useState(initialExpense?.childWeight ?? 0.7);
   const [uploading, setUploading] = useState(false);
 
   const activeMembers = members.filter((m) => m.active !== false);
@@ -744,7 +746,7 @@ function ExpenseForm({ members, onSave, onCancel }) {
   const submit = () => {
     if (!canSave) return;
     onSave({
-      id: genId("ex"),
+      id: initialExpense?.id || genId("ex"),
       title, amount: Number(amount), paidBy, date, category, description, receipt,
       splitType: splitType === "equalAll" || splitType === "equalSelected" ? "equal" : splitType,
       participants,
@@ -836,8 +838,9 @@ function ExpenseForm({ members, onSave, onCancel }) {
   );
 }
 
-function ExpensesTab({ members, expenses, isAdmin, onAdd, onDelete }) {
+function ExpensesTab({ members, expenses, isAdmin, onAdd, onUpdate, onDelete }) {
   const [showForm, setShowForm] = useState(false);
+  const [editingExpense, setEditingExpense] = useState(null);
   const [search, setSearch] = useState("");
   const [catFilter, setCatFilter] = useState("All");
   const [expandedId, setExpandedId] = useState(null);
@@ -883,18 +886,14 @@ function ExpensesTab({ members, expenses, isAdmin, onAdd, onDelete }) {
                       <div className="flex items-center gap-3 shrink-0">
                         <span className="font-semibold text-slate-800">{inr(e.amount)}</span>
                         {isAdmin && (
-                          <button
-                            type="button"
-                            title="Delete expense"
-                            aria-label={`Delete ${e.title}`}
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              if (confirm(`Delete expense "${e.title}"?`)) onDelete(e.id);
-                            }}
-                            className="text-slate-400 hover:text-rose-600 p-1"
-                          >
-                            <Trash2 size={16} />
-                          </button>
+                          <div className="flex items-center gap-1">
+                            <button type="button" title="Edit expense" aria-label={`Edit ${e.title}`} onClick={(event) => { event.stopPropagation(); setEditingExpense(e); }} className="text-slate-400 hover:text-teal-700 p-1">
+                              <Pencil size={16} />
+                            </button>
+                            <button type="button" title="Delete expense" aria-label={`Delete ${e.title}`} onClick={(event) => { event.stopPropagation(); if (confirm(`Delete expense "${e.title}"?`)) onDelete(e.id); }} className="text-slate-400 hover:text-rose-600 p-1">
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
                         )}
                       </div>
                     </div>
@@ -924,6 +923,9 @@ function ExpensesTab({ members, expenses, isAdmin, onAdd, onDelete }) {
 
       <Modal open={showForm} onClose={() => setShowForm(false)} title="Add Trip Expense" wide>
         <ExpenseForm members={members} onCancel={() => setShowForm(false)} onSave={(exp) => { onAdd(exp); setShowForm(false); }} />
+      </Modal>
+      <Modal open={!!editingExpense} onClose={() => setEditingExpense(null)} title="Edit Trip Expense" wide>
+        <ExpenseForm members={members} initialExpense={editingExpense} onCancel={() => setEditingExpense(null)} onSave={(exp) => { onUpdate(exp); setEditingExpense(null); }} />
       </Modal>
     </div>
   );
@@ -1305,6 +1307,7 @@ export default function App() {
   const deleteTrainPayment = (id) => persistTrain({ ...trainData, payments: trainData.payments.filter((p) => p.id !== id) });
 
   const addExpense = (e) => persistExp([...expenses, e]);
+  const updateExpense = (updated) => persistExp(expenses.map((expense) => (expense.id === updated.id ? updated : expense)));
   const deleteExpense = (id) => persistExp(expenses.filter((e) => e.id !== id));
 
   const addMember = (m) => persistMembers([...members, m]);
@@ -1433,7 +1436,7 @@ export default function App() {
         {tab === "dashboard" && <DashboardTab totals={totals} members={members} categoryBreakdown={categoryBreakdown} trainData={trainData} />}
         {tab === "package" && <PackagePaymentsTab members={members} pkgPayments={pkgPayments} memberStats={memberStats} isAdmin={isAdmin} onAddPayment={addPkgPayment} onDeletePayment={deletePkgPayment} />}
         {tab === "train" && <TrainPaymentsTab members={members} trainData={trainData} isAdmin={isAdmin} onSetTicket={setTicket} onAddPayment={addTrainPayment} onDeletePayment={deleteTrainPayment} />}
-        {tab === "expenses" && <ExpensesTab members={members} expenses={expenses} isAdmin={isAdmin} onAdd={addExpense} onDelete={deleteExpense} />}
+        {tab === "expenses" && <ExpensesTab members={members} expenses={expenses} isAdmin={isAdmin} onAdd={addExpense} onUpdate={updateExpense} onDelete={deleteExpense} />}
         {tab === "settlements" && <SettlementsTab members={members} finalBalances={finalBalances} suggested={suggestedSettlements} completedSettlements={completedSettlements} isAdmin={isAdmin} onMarkSettled={markSettled} onUndoSettlement={undoSettlement} />}
         {tab === "members" && <MembersTab members={members} memberStats={memberStats} isAdmin={isAdmin} onAdd={addMember} onUpdate={updateMember} onRemove={removeMember} />}
         {tab === "reports" && <ReportsTab members={members} memberStats={memberStats} expenses={expenses} categoryBreakdown={categoryBreakdown} trainData={trainData} />}
