@@ -922,7 +922,12 @@ function ExpensesTab({ members, expenses, isAdmin, onAdd, onDelete }) {
 function SettlementsTab({ members, finalBalances, suggested, completedSettlements, isAdmin, onMarkSettled, onUndoSettlement }) {
   const memberName = (id) => (members.find((m) => m.id === id) || {}).name || "—";
   const [expandedFamilies, setExpandedFamilies] = useState({});
-  const familySettlements = Object.entries(suggested.reduce((groups, settlement) => {
+  const externalSuggested = suggested.filter((settlement) => {
+    const fromMember = members.find((member) => member.id === settlement.from);
+    const toMember = members.find((member) => member.id === settlement.to);
+    return familyName(fromMember || { name: settlement.fromName }) !== familyName(toMember || { name: settlement.toName });
+  });
+  const familySettlements = Object.entries(externalSuggested.reduce((groups, settlement) => {
     const debtor = members.find((member) => member.id === settlement.from);
     const key = familyName(debtor || { name: settlement.fromName });
     groups[key] = groups[key] || [];
@@ -950,7 +955,7 @@ function SettlementsTab({ members, finalBalances, suggested, completedSettlement
 
       <div className="bg-white rounded-xl border border-stone-200 shadow-sm p-5">
         <Heading className="text-base mb-4">Pending Settlements</Heading>
-        {suggested.length === 0 ? <EmptyState text="Everyone is settled up 🎉" /> : (
+        {externalSuggested.length === 0 ? <EmptyState text="Everyone is settled up 🎉" /> : (
           <div className="space-y-2">
             {familySettlements.map(([family, settlements]) => {
               const expanded = expandedFamilies[family];
@@ -961,7 +966,7 @@ function SettlementsTab({ members, finalBalances, suggested, completedSettlement
                     <div className="flex items-center gap-2 text-sm">
                       {expanded ? <ChevronUp size={16} className="text-slate-400" /> : <ChevronDown size={16} className="text-slate-400" />}
                       <span className="font-semibold text-slate-800">{family}</span>
-                      <span className="text-slate-400">owes {settlements.length} {settlements.length === 1 ? "person" : "people"}</span>
+                      <span className="text-slate-400">owes {Array.from(new Set(settlements.map((settlement) => settlement.toName))).join(", ")}</span>
                     </div>
                     <span className="font-bold text-teal-700">{inr(total)}</span>
                   </button>
