@@ -44,6 +44,25 @@ const RAW_NAMES = [
   "Mayur", "Bhanu", "Charmi", "Atul sukhadiya", "Sangi", "Preet", "Vihar Talaviya",
 ];
 
+const FAMILY_BY_NAME = {
+  Mitul: "Mitul & Family", Maheshbhai: "Mitul & Family", Jagrutiben: "Mitul & Family", Krisha: "Mitul & Family", grishma: "Mitul & Family",
+  "meena ben": "Meenaben & Family",
+  Harshil: "Harshil & Family", Nehal: "Harshil & Family", "Harsha ben": "Harshil & Family", "Naresh bhai": "Harshil & Family",
+  Anil: "Anil & Family", Kanubhai: "Anil & Family", Shobhanaben: "Anil & Family",
+  "Atul Akbari": "Akbari Family", "Harsha Akbari": "Akbari Family", "Pinal Child": "Akbari Family", Jenil: "Akbari Family",
+  Deep: "Bhavesh & Family", Bhavesh: "Bhavesh & Family", Riddhi: "Bhavesh & Family", "Vaidehi Child": "Bhavesh & Family",
+  Dipak: "Dipak & Emily", Geeta: "Dipak & Emily", "Hil Child": "Dipak & Emily",
+  Paresh: "Paresh & Family", Diptee: "Paresh & Family", Ronak: "Paresh & Family", Renu: "Paresh & Family", Jayaben: "Paresh & Family",
+  Yash: "Yash & Family",
+  Mayur: "Mayur & Family", Bhanu: "Mayur & Family", Charmi: "Mayur & Family",
+  "Atul sukhadiya": "Sukhadiya Family", Sangi: "Sukhadiya Family", Preet: "Sukhadiya Family",
+  "Vihar Talaviya": "Vihar & Family",
+};
+
+function familyName(member) {
+  return FAMILY_BY_NAME[member.name] || member.name;
+}
+
 function seedMembers() {
   return RAW_NAMES.map((name, i) => {
     const isChild = /child/i.test(name);
@@ -902,6 +921,15 @@ function ExpensesTab({ members, expenses, isAdmin, onAdd, onDelete }) {
 
 function SettlementsTab({ members, finalBalances, suggested, completedSettlements, isAdmin, onMarkSettled, onUndoSettlement }) {
   const memberName = (id) => (members.find((m) => m.id === id) || {}).name || "—";
+  const [expandedFamilies, setExpandedFamilies] = useState({});
+  const familySettlements = Object.entries(suggested.reduce((groups, settlement) => {
+    const debtor = members.find((member) => member.id === settlement.from);
+    const key = familyName(debtor || { name: settlement.fromName });
+    groups[key] = groups[key] || [];
+    groups[key].push(settlement);
+    return groups;
+  }, {}));
+
   return (
     <div className="space-y-6">
       <Heading>Settlements</Heading>
@@ -924,19 +952,39 @@ function SettlementsTab({ members, finalBalances, suggested, completedSettlement
         <Heading className="text-base mb-4">Pending Settlements</Heading>
         {suggested.length === 0 ? <EmptyState text="Everyone is settled up 🎉" /> : (
           <div className="space-y-2">
-            {suggested.map((s) => (
-              <div key={s.id} className="flex items-center justify-between bg-stone-50 border border-stone-200 rounded-lg px-4 py-3">
-                <div className="text-sm">
-                  <span className="font-semibold text-slate-800">{s.fromName}</span>
-                  <span className="text-slate-400 mx-2">owes</span>
-                  <span className="font-semibold text-slate-800">{s.toName}</span>
+            {familySettlements.map(([family, settlements]) => {
+              const expanded = expandedFamilies[family];
+              const total = settlements.reduce((sum, settlement) => sum + settlement.amount, 0);
+              return (
+                <div key={family} className="bg-stone-50 border border-stone-200 rounded-lg overflow-hidden">
+                  <button type="button" onClick={() => setExpandedFamilies((current) => ({ ...current, [family]: !current[family] }))} className="w-full flex items-center justify-between px-4 py-3 text-left">
+                    <div className="flex items-center gap-2 text-sm">
+                      {expanded ? <ChevronUp size={16} className="text-slate-400" /> : <ChevronDown size={16} className="text-slate-400" />}
+                      <span className="font-semibold text-slate-800">{family}</span>
+                      <span className="text-slate-400">owes {settlements.length} {settlements.length === 1 ? "person" : "people"}</span>
+                    </div>
+                    <span className="font-bold text-teal-700">{inr(total)}</span>
+                  </button>
+                  {expanded && (
+                    <div className="border-t border-stone-200 px-4 py-2 space-y-2">
+                      {settlements.map((s) => (
+                        <div key={s.id} className="flex items-center justify-between gap-3 bg-white border border-stone-200 rounded-lg px-3 py-2">
+                          <div className="text-sm">
+                            <span className="font-semibold text-slate-800">{s.fromName}</span>
+                            <span className="text-slate-400 mx-2">owes</span>
+                            <span className="font-semibold text-slate-800">{s.toName}</span>
+                          </div>
+                          <div className="flex items-center gap-3 shrink-0">
+                            <span className="font-bold text-teal-700">{inr(s.amount)}</span>
+                            {isAdmin && <button onClick={() => onMarkSettled(s)} className="text-xs bg-teal-700 hover:bg-teal-800 text-white px-3 py-1.5 rounded-lg">Mark Settled</button>}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
-                <div className="flex items-center gap-3">
-                  <span className="font-bold text-teal-700">{inr(s.amount)}</span>
-                  {isAdmin && <button onClick={() => onMarkSettled(s)} className="text-xs bg-teal-700 hover:bg-teal-800 text-white px-3 py-1.5 rounded-lg">Mark Settled</button>}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
