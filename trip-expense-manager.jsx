@@ -171,29 +171,35 @@ function applySettlements(bal, completed) {
   return adj;
 }
 
-function suggestSettlements(balances, members) {
+function suggestSettlements(expenses, members, completed) {
   const eps = 0.01;
-  const creditors = members
-    .filter((m) => (balances[m.id] || 0) > eps)
-    .map((m) => ({ id: m.id, name: m.name, amt: balances[m.id] }))
-    .sort((a, b) => b.amt - a.amt);
-  const debtors = members
-    .filter((m) => (balances[m.id] || 0) < -eps)
-    .map((m) => ({ id: m.id, name: m.name, amt: -balances[m.id] }))
-    .sort((a, b) => b.amt - a.amt);
-  const txns = [];
-  let i = 0, j = 0;
-  while (i < debtors.length && j < creditors.length) {
-    const d = debtors[i], c = creditors[j];
-    const amt = Math.min(d.amt, c.amt);
-    if (amt > eps) {
-      txns.push({ id: genId("sg"), from: d.id, fromName: d.name, to: c.id, toName: c.name, amount: Math.round(amt) });
-    }
-    d.amt -= amt; c.amt -= amt;
-    if (d.amt <= eps) i++;
-    if (c.amt <= eps) j++;
-  }
-  return txns;
+  const debts = {};
+  const addDebt = (from, to, amount) => {
+    if (from === to || amount <= eps) return;
+    debts[from] = debts[from] || {};
+    debts[from][to] = (debts[from][to] || 0) + amount;
+  };
+
+  expenses.forEach((expense) => {
+    const shares = getShares(expense, members);
+    Object.entries(shares).forEach(([memberId, share]) => addDebt(memberId, expense.paidBy, share));
+  });
+
+  completed.forEach((settlement) => {
+    if (!debts[settlement.from]?.[settlement.to]) return;
+    debts[settlement.from][settlement.to] = Math.max(0, debts[settlement.from][settlement.to] - settlement.amount);
+  });
+
+  return Object.entries(debts).flatMap(([from, recipients]) => Object.entries(recipients)
+    .filter(([, amount]) => amount > eps)
+    .map(([to, amount]) => ({
+      id: genId("sg"),
+      from,
+      fromName: (members.find((member) => member.id === from) || {}).name || "—",
+      to,
+      toName: (members.find((member) => member.id === to) || {}).name || "—",
+      amount: Math.round(amount),
+    })));
 }
 
 function compressImage(file, maxW = 480, quality = 0.6) {
@@ -1262,7 +1268,7 @@ export default function App() {
   const netBalances = useMemo(() => computeNetBalances(members, expenses), [members, expenses]);
   const finalBalances = useMemo(() => applySettlements(netBalances, completedSettlements), [netBalances, completedSettlements]);
   const memberStats = useMemo(() => memberStatsBase.map((m) => ({ ...m, finalBalance: finalBalances[m.id] || 0 })), [memberStatsBase, finalBalances]);
-  const suggestedSettlements = useMemo(() => suggestSettlements(finalBalances, members), [finalBalances, members]);
+  const suggestedSettlements = useMemo(() => suggestSettlements(expenses, members, completedSettlements), [expenses, members, completedSettlements]);
 
   const categoryBreakdown = useMemo(() => {
     const map = {};
